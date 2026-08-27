@@ -1,0 +1,11 @@
+# Key to press to keep the session active while Teams is running
+# Supported values: numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl, alt
+key = "numlock"
+
+# Seconds to wait for Teams to open
+teams_open_delay = 15
+
+# Seconds to wait between key presses while Teams is running
+[press_interval]
+min = 15
+max = 90
