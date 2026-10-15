@@ -25,12 +25,14 @@ def get_base_dir() -> Path:
 PROCESS_NAME = "ms-teams.exe"
 SETTINGS_PATH = get_base_dir() / "settings.toml"
 
+# Settings file template
 DEFAULT_SETTINGS_TOML = """\
 # Key to press to keep the session active while Teams is running
-# Supported values: numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl, alt
+## Supported values: numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl, alt
 key = "numlock"
 
 # Seconds to wait for Teams to open
+## Set to -1 to prevent the script from checking if Teams is running
 teams_open_delay = 15
 
 # Seconds to wait between key presses while Teams is running
@@ -179,8 +181,9 @@ if __name__ == "__main__":
     print(f"{now()} - Using key '{settings['key']}'")
     try:
         while True:
-            if is_teams_running():
-                print(f"{now()} - Microsoft Teams is running!")
+            if settings["teams_open_delay"] < 0 or is_teams_running():
+                if settings["teams_open_delay"] >= 0:
+                    print(f"{now()} - Microsoft Teams is running!")
                 press_key_twice(settings["vk_code"])
                 print(f"{now()} - Pressed {settings['key'].upper()} twice")
                 delay = random.randint(
