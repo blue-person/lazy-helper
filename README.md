@@ -7,13 +7,14 @@ A small Windows script that keeps Microsoft Teams from showing you as "away" whi
 - Checks whether `ms-teams.exe` is running.
 - If it is, it simulates pressing a key (default: `NumLock`) at random intervals to keep your status "active".
 - It also prevents the computer from going to sleep or turning off the display while the script is running.
-- If Teams isn't open, it just waits and checks again later. 
+- If Teams isn't open, it just waits and checks again later.
 - When the script stops (Ctrl+C, closing the console, logging off, or shutting down), it restores the system's normal power behavior.
 
 ## Requirements
 
 - Windows
-- Python 3.11
+- Python 3.11 or newer
+- [uv](https://docs.astral.sh/uv/) (only needed to build the executable)
 
 ## Installation
 
@@ -22,11 +23,11 @@ git clone https://github.com/blue-person/lazy-helper.git
 cd lazy-helper
 ```
 
-No external dependencies required.
+The script itself has no external dependencies.
 
 ## Configuration
 
-Edit `settings.toml` to adjust the behavior:
+Edit `settings.toml` (next to `main.py` or the `.exe`) to adjust the behavior:
 
 ```toml
 key = "numlock"          # key to press: numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl, alt
@@ -44,6 +45,19 @@ python main.py
 ```
 
 The script keeps running in the console, printing logs of what it's doing. Press `Ctrl+C` to stop it.
+
+If `settings.toml` doesn't exist, it is created with default values on the first run.
+
+## Building the executable
+
+The project is compiled into a single `.exe` with [Nuitka](https://nuitka.net/). You need `uv` and a C compiler; if none is installed, Nuitka offers to download one automatically.
+
+```bash
+uv sync
+uv run nuitka --onefile --windows-icon-from-ico=assets/icon.ico --output-dir=dist --output-filename=lazy-helper.exe main.py
+```
+
+The result is `dist/lazy-helper.exe`. Place `settings.toml` next to it to customize the behavior.
 
 ## License
 

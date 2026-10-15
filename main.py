@@ -1,16 +1,43 @@
 # Libraries
 import ctypes
+import os
+import random
 import subprocess
 import sys
 import time
-import random
 import tomllib
 from datetime import datetime
 from pathlib import Path
 
+
+# Get the base directory of the script or executable
+def get_base_dir() -> Path:
+    # In a --onefile build, __file__ points at a temporary folder, not the .exe
+    onefile_binary = os.environ.get("NUITKA_ONEFILE_BINARY")
+    if onefile_binary:
+        return Path(onefile_binary).resolve().parent
+    if "__compiled__" in globals():
+        return Path(sys.argv[0]).resolve().parent
+    return Path(__file__).resolve().parent
+
+
 # Constants
 PROCESS_NAME = "ms-teams.exe"
-SETTINGS_PATH = Path(__file__).with_name("settings.toml")
+SETTINGS_PATH = get_base_dir() / "settings.toml"
+
+DEFAULT_SETTINGS_TOML = """\
+# Key to press to keep the session active while Teams is running
+# Supported values: numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl, alt
+key = "numlock"
+
+# Seconds to wait for Teams to open
+teams_open_delay = 15
+
+# Seconds to wait between key presses while Teams is running
+[press_interval]
+min = 15
+max = 90
+"""
 
 # Keys
 KEYEVENTF_KEYUP = 0x0002
@@ -49,12 +76,22 @@ def now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def ensure_settings_file() -> None:
+    if SETTINGS_PATH.exists():
+        return
+    SETTINGS_PATH.write_text(DEFAULT_SETTINGS_TOML, encoding="utf-8")
+    print(
+        f"{now()} - settings.toml not found, created with default values at {SETTINGS_PATH}"
+    )
+
+
 def load_settings() -> dict:
+    ensure_settings_file()
     try:
         with open(SETTINGS_PATH, "rb") as f:
             data = tomllib.load(f)
-    except FileNotFoundError:
-        sys.exit(f"{now()} - Settings file not found: {SETTINGS_PATH}")
+    except OSError as exc:
+        sys.exit(f"{now()} - Could not read settings file: {exc}")
     except tomllib.TOMLDecodeError as exc:
         sys.exit(f"{now()} - Invalid settings.toml: {exc}")
 
@@ -116,10 +153,13 @@ def _install_console_handler() -> None:
 
 
 def is_teams_running() -> bool:
+    # tasklist writes in the console's OEM codepage
     output = subprocess.run(
         ["tasklist", "/FI", f"IMAGENAME eq {PROCESS_NAME}", "/NH"],
         capture_output=True,
         text=True,
+        encoding="oem",
+        errors="replace",
     ).stdout
     return PROCESS_NAME.lower() in output.lower()
 
