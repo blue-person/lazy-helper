@@ -1,7 +1,7 @@
 [project]
 name = "lazy-helper"
-version = "0.1.0"
-description = "Keeps Microsoft Teams marked as active by simulating a key press at random intervals."
+version = "1.0.0"
+description = "Keeps your computer awake while you are away."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
@@ -9,6 +9,7 @@ dependencies = []
 [dependency-groups]
 dev = [
     "nuitka>=2.5",
+    "pillow>=10.0",
 ]
 
 [tool.uv]

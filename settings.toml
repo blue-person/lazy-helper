@@ -1,0 +1,20 @@
+# When to press the key
+## always: press the key all the time
+## auto:   press the key only while the process in "process_name" is running
+## awake:  never press any key, only prevent the system from sleeping
+mode = "auto"
+
+# Key to press to keep the session active
+## Supported values: numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl, alt
+key = "numlock"
+
+# Process to look for (only used in "auto" mode)
+process_name = "discord.exe"
+
+# Seconds to wait before checking again if the process is running (only used in "auto" mode)
+process_check_interval = 15
+
+# Seconds to wait between key presses
+[press_interval]
+min = 15
+max = 90

@@ -1,4 +1,5 @@
 # Libraries
+import argparse
 import ctypes
 import os
 import random
@@ -22,24 +23,34 @@ def get_base_dir() -> Path:
 
 
 # Constants
-PROCESS_NAME = "ms-teams.exe"
 SETTINGS_PATH = get_base_dir() / "settings.toml"
 
 # Settings file template
 DEFAULT_SETTINGS_TOML = """\
-# Key to press to keep the session active while Teams is running
+# When to press the key
+## always: press the key all the time
+## auto:   press the key only while the process in "process_name" is running
+## awake:  never press any key, only prevent the system from sleeping
+mode = "auto"
+
+# Key to press to keep the session active
 ## Supported values: numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl, alt
 key = "numlock"
 
-# Seconds to wait for Teams to open
-## Set to -1 to prevent the script from checking if Teams is running
-teams_open_delay = 15
+# Process to look for (only used in "auto" mode)
+process_name = "discord.exe"
 
-# Seconds to wait between key presses while Teams is running
+# Seconds to wait before checking again if the process is running (only used in "auto" mode)
+process_check_interval = 15
+
+# Seconds to wait between key presses
 [press_interval]
 min = 15
 max = 90
 """
+
+# Valid operating modes
+MODES = ("always", "auto", "awake")
 
 # Keys
 KEYEVENTF_KEYUP = 0x0002
@@ -87,7 +98,19 @@ def ensure_settings_file() -> None:
     )
 
 
-def load_settings() -> dict:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Keeps the session active by simulating a key press."
+    )
+    parser.add_argument(
+        "--mode",
+        choices=MODES,
+        help="Override the mode from settings.toml (always, auto or awake)",
+    )
+    return parser.parse_args()
+
+
+def load_settings(cli_mode: str | None = None) -> dict:
     ensure_settings_file()
     try:
         with open(SETTINGS_PATH, "rb") as f:
@@ -113,10 +136,21 @@ def load_settings() -> dict:
             f"cannot be greater than max ({interval_max})"
         )
 
+    process_name = str(data.get("process_name", "discord.exe")).strip()
+    check_interval = max(int(data.get("process_check_interval", 15)), 1)
+
+    mode = cli_mode or str(data.get("mode", "auto")).lower()
+    if mode not in MODES:
+        sys.exit(f"{now()} - Unsupported mode '{mode}'. Choose one of: {', '.join(MODES)}")
+    if mode == "auto" and not process_name:
+        sys.exit(f"{now()} - Mode 'auto' needs a non-empty process_name")
+
     return {
+        "mode": mode,
         "key": key,
         "vk_code": VK_CODES[key],
-        "teams_open_delay": int(data.get("teams_open_delay", 15)),
+        "process_name": process_name,
+        "process_check_interval": check_interval,
         "interval_min": interval_min,
         "interval_max": interval_max,
     }
@@ -154,16 +188,16 @@ def _install_console_handler() -> None:
     ctypes.windll.kernel32.SetConsoleCtrlHandler(_console_handler_ref, True)
 
 
-def is_teams_running() -> bool:
+def is_process_running(process_name: str) -> bool:
     # tasklist writes in the console's OEM codepage
     output = subprocess.run(
-        ["tasklist", "/FI", f"IMAGENAME eq {PROCESS_NAME}", "/NH"],
+        ["tasklist", "/FI", f"IMAGENAME eq {process_name}", "/NH"],
         capture_output=True,
         text=True,
         encoding="oem",
         errors="replace",
     ).stdout
-    return PROCESS_NAME.lower() in output.lower()
+    return process_name.lower() in output.lower()
 
 
 def press_key_twice(vk_code: int) -> None:
@@ -172,30 +206,47 @@ def press_key_twice(vk_code: int) -> None:
         ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
 
 
+def should_press(settings: dict) -> bool:
+    # In "always" mode no process is ever looked up
+    if settings["mode"] == "always":
+        return True
+    name = settings["process_name"]
+    if is_process_running(name):
+        print(f"{now()} - Process {name} is running.")
+        return True
+    print(f"{now()} - Process {name} is not running.")
+    return False
+
+
+def run(settings: dict) -> None:
+    if settings["mode"] == "awake":
+        # No key presses and no process lookups: the execution state set in
+        # prevent_sleep() is all that is needed, so just wait.
+        print(f"{now()} - No key will be pressed and only sleep is blocked. Press Ctrl+C to exit.")
+        while True:
+            time.sleep(3600)
+    while True:
+        if should_press(settings):
+            press_key_twice(settings["vk_code"])
+            print(f"{now()} - Pressed {settings['key'].upper()} twice")
+            delay = random.randint(settings["interval_min"], settings["interval_max"])
+        else:
+            delay = settings["process_check_interval"]
+        print(f"{now()} - Sleeping for {delay} seconds...")
+        time.sleep(delay)
+
+
 # Main handler
 if __name__ == "__main__":
-    settings = load_settings()
+    settings = load_settings(parse_args().mode)
     _install_console_handler()
     prevent_sleep()
     print(f"{now()} - Sleep prevention enabled")
-    print(f"{now()} - Using key '{settings['key']}'")
+    print(f"{now()} - Mode: {settings['mode']}")
+    if settings["mode"] != "awake":
+        print(f"{now()} - Using key '{settings['key']}'")
     try:
-        while True:
-            if settings["teams_open_delay"] < 0 or is_teams_running():
-                if settings["teams_open_delay"] >= 0:
-                    print(f"{now()} - Microsoft Teams is running!")
-                press_key_twice(settings["vk_code"])
-                print(f"{now()} - Pressed {settings['key'].upper()} twice")
-                delay = random.randint(
-                    settings["interval_min"], settings["interval_max"]
-                )
-                print(f"{now()} - Sleeping for {delay} seconds...")
-                time.sleep(delay)
-            else:
-                delay = settings["teams_open_delay"]
-                print(f"{now()} - Microsoft Teams is not running!")
-                print(f"{now()} - Sleeping for {delay} seconds...")
-                time.sleep(delay)
+        run(settings)
     except KeyboardInterrupt:
         print(f"\n{now()} - Interrupted by user, exiting...")
     finally:

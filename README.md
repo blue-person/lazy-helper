@@ -1,20 +1,23 @@
 # Lazy Helper
 
-A small Windows script that keeps Microsoft Teams from showing you as "away" while it's open.
+A small Windows script that keeps the computer awake and simulates a key press at random intervals.
 
 ## What it does
 
-- Checks whether `ms-teams.exe` is running.
-- If it is, it simulates pressing a key (default: `NumLock`) at random intervals to keep your status "active".
-- It also prevents the computer from going to sleep or turning off the display while the script is running.
-- If Teams isn't open, it just waits and checks again later.
-- When the script stops, it restores the system's normal power behavior.
+- It prevents the computer from going to sleep or turning off the display while it runs.
+- It simulates a key press (by default, `NumLock`) at random intervals, so the session does not look inactive.
+- When it stops, it restores the normal power behavior of the system.
+
+It has three modes.
+
+- `auto` (default) presses the key only while the process set in `process_name` is running, and checks again later when it is not.
+- `always` presses the key continuously.
+- `awake` never presses a key and only prevents the computer from sleeping.
 
 ## Requirements
 
 - Windows
 - Python 3.11 or newer
-- [uv](https://docs.astral.sh/uv/) (only needed to build the executable)
 
 ## Installation
 
@@ -25,34 +28,59 @@ cd lazy-helper
 
 ## Configuration
 
-Edit `settings.toml` to adjust the behavior:
+Edit `settings.toml` to change the behavior. Any missing option uses its default value. If the file does not exist, the program creates it with the default values on the first run.
 
 ```toml
-key = "numlock"             # key to press: numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl, alt
-teams_open_delay = 15       # seconds to wait if Teams isn't open
+# always, auto or awake
+mode = "auto"
 
+# numlock, scrolllock, capslock, f13, f14, f15, shift, ctrl or alt
+key = "numlock"
+
+# Process to look for, used only in auto mode
+process_name = "discord.exe"
+
+# Seconds between process checks, used only in auto mode
+process_check_interval = 15
+
+# Minimum and maximum seconds between key presses
 [press_interval]
-min = 15                    # minimum interval between key presses (seconds)
-max = 90                    # maximum interval between key presses (seconds)
+min = 15
+max = 90
 ```
 
 ## Usage
 
 ```bash
-python main.py
+python main.py                 # uses the mode from settings.toml
+python main.py --mode auto     # presses the key only while the configured process is running
+python main.py --mode always   # presses the key continuously
+python main.py --mode awake    # never presses a key, only prevents sleep
 ```
 
-The script keeps running in the console, printing logs of what it's doing. Press `Ctrl+C` to stop it.
-
-If `settings.toml` doesn't exist, it is created with default values on the first run.
+The `--mode` option overrides the value in `settings.toml`. The script keeps running in the console and prints a log of its actions. Press `Ctrl+C` to stop it.
 
 ## Building the executable
 
-The project is compiled into a single `.exe` with [Nuitka](https://nuitka.net/). You need `uv` and a C compiler. If none is installed, Nuitka offers to download one automatically.
+The project is compiled into a single `.exe` with [Nuitka](https://nuitka.net/), which requires `uv` and a C compiler. If no compiler is installed, Nuitka offers to download one.
 
-```bash
-uv sync
-uv run nuitka --onefile --windows-icon-from-ico=assets/icon.ico --output-dir=dist --output-filename=lazy-helper.exe main.py
+```bat
+uv sync --frozen
+
+uv run --frozen nuitka ^
+    --onefile ^
+    --assume-yes-for-downloads ^
+    --remove-output ^
+    --windows-icon-from-ico=assets/icon.ico ^
+    --include-data-files=assets/icon.ico=icon.ico ^
+    --include-data-files=settings.toml=settings.toml ^
+    --include-data-files-external=icon.ico ^
+    --include-data-files-external=settings.toml ^
+    --product-version=1.0.0 ^
+    --file-version=1.0.0 ^
+    --product-name="lazy-helper" ^
+    --file-description="Keeps your computer awake while you are away." ^
+    --output-dir=dist ^
+    --output-filename=lazy-helper.exe ^
+    main.py
 ```
-
-The result is `dist/lazy-helper.exe`. Place `settings.toml` next to it to customize the behavior.
